@@ -63,15 +63,54 @@ pub fn groth16_verify(
     bn.pairing_check(g1, g2)
 }
 
+/// Verify a Groth16 proof from Soroban-encoded bytes (reusable by other contracts).
+///
+/// `pub_signals` are 32-byte big-endian scalars; points use Soroban's uncompressed
+/// BN254 encoding (G1 = X‖Y, 64B; G2 = Xc1‖Xc0‖Yc1‖Yc0, 128B).
+#[allow(clippy::too_many_arguments)]
+pub fn verify_encoded(
+    env: &Env,
+    pub_signals: &Vec<BytesN<32>>,
+    a: &BytesN<64>,
+    b: &BytesN<128>,
+    c: &BytesN<64>,
+    vk_alpha: &BytesN<64>,
+    vk_beta: &BytesN<128>,
+    vk_gamma: &BytesN<128>,
+    vk_delta: &BytesN<128>,
+    vk_ic: &Vec<BytesN<64>>,
+) -> bool {
+    let mut signals = Vec::new(env);
+    for s in pub_signals.iter() {
+        signals.push_back(Bn254Fr::from_bytes(s));
+    }
+    let mut ic = Vec::new(env);
+    for p in vk_ic.iter() {
+        ic.push_back(Bn254G1Affine::from_bytes(p));
+    }
+    let vk = Vk {
+        alpha: Bn254G1Affine::from_bytes(vk_alpha.clone()),
+        beta: Bn254G2Affine::from_bytes(vk_beta.clone()),
+        gamma: Bn254G2Affine::from_bytes(vk_gamma.clone()),
+        delta: Bn254G2Affine::from_bytes(vk_delta.clone()),
+        ic,
+    };
+    groth16_verify(
+        env,
+        &vk,
+        &signals,
+        &Bn254G1Affine::from_bytes(a.clone()),
+        &Bn254G2Affine::from_bytes(b.clone()),
+        &Bn254G1Affine::from_bytes(c.clone()),
+    )
+}
+
 #[contract]
 pub struct SemaphoreVerifier;
 
 #[contractimpl]
 impl SemaphoreVerifier {
     /// On-chain Groth16/BN254 verification entry point.
-    ///
-    /// `pub_signals` are 32-byte big-endian scalars; points use Soroban's uncompressed
-    /// BN254 encoding (G1 = X‖Y, 64B; G2 = Xc1‖Xc0‖Yc1‖Yc0, 128B).
     #[allow(clippy::too_many_arguments)]
     pub fn verify(
         env: Env,
@@ -85,28 +124,8 @@ impl SemaphoreVerifier {
         vk_delta: BytesN<128>,
         vk_ic: Vec<BytesN<64>>,
     ) -> bool {
-        let mut signals = Vec::new(&env);
-        for s in pub_signals.iter() {
-            signals.push_back(Bn254Fr::from_bytes(s));
-        }
-        let mut ic = Vec::new(&env);
-        for p in vk_ic.iter() {
-            ic.push_back(Bn254G1Affine::from_bytes(p));
-        }
-        let vk = Vk {
-            alpha: Bn254G1Affine::from_bytes(vk_alpha),
-            beta: Bn254G2Affine::from_bytes(vk_beta),
-            gamma: Bn254G2Affine::from_bytes(vk_gamma),
-            delta: Bn254G2Affine::from_bytes(vk_delta),
-            ic,
-        };
-        groth16_verify(
-            &env,
-            &vk,
-            &signals,
-            &Bn254G1Affine::from_bytes(a),
-            &Bn254G2Affine::from_bytes(b),
-            &Bn254G1Affine::from_bytes(c),
+        verify_encoded(
+            &env, &pub_signals, &a, &b, &c, &vk_alpha, &vk_beta, &vk_gamma, &vk_delta, &vk_ic,
         )
     }
 }
