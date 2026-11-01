@@ -17,6 +17,9 @@ use soroban_sdk::{
 };
 
 #[cfg(test)]
+extern crate std;
+
+#[cfg(test)]
 mod fixture;
 
 /// Groth16/BN254 verification key. `ic` must have `public_inputs + 1` points.
@@ -155,6 +158,62 @@ mod test {
             groth16_verify(&env, &vk, &pub_signals, &a, &b, &c),
             "a real Semaphore ceremony proof must verify on Soroban BN254"
         );
+    }
+
+    fn fixture_args(
+        env: &Env,
+    ) -> (
+        soroban_sdk::Vec<BytesN<32>>,
+        BytesN<64>,
+        BytesN<128>,
+        BytesN<64>,
+        BytesN<64>,
+        BytesN<128>,
+        BytesN<128>,
+        BytesN<128>,
+        soroban_sdk::Vec<BytesN<64>>,
+    ) {
+        let pub_signals = vec![
+            env,
+            BytesN::from_array(env, &PUB_0),
+            BytesN::from_array(env, &PUB_1),
+            BytesN::from_array(env, &PUB_2),
+            BytesN::from_array(env, &PUB_3),
+        ];
+        let ic = vec![
+            env,
+            BytesN::from_array(env, &VK_IC_0),
+            BytesN::from_array(env, &VK_IC_1),
+            BytesN::from_array(env, &VK_IC_2),
+            BytesN::from_array(env, &VK_IC_3),
+            BytesN::from_array(env, &VK_IC_4),
+        ];
+        (
+            pub_signals,
+            BytesN::from_array(env, &PROOF_A),
+            BytesN::from_array(env, &PROOF_B),
+            BytesN::from_array(env, &PROOF_C),
+            BytesN::from_array(env, &VK_ALPHA),
+            BytesN::from_array(env, &VK_BETA),
+            BytesN::from_array(env, &VK_GAMMA),
+            BytesN::from_array(env, &VK_DELTA),
+            ic,
+        )
+    }
+
+    /// Objective (b): measure the CPU instruction cost of an on-chain `verify` call, to
+    /// confirm it fits a `__check_auth` budget (mainnet tx limit is 100,000,000 insns).
+    #[test]
+    fn reports_verify_budget() {
+        let env = Env::default();
+        let id = env.register(SemaphoreVerifier, ());
+        let client = SemaphoreVerifierClient::new(&env, &id);
+        let (pub_signals, a, b, c, alpha, beta, gamma, delta, ic) = fixture_args(&env);
+        assert!(client.verify(&pub_signals, &a, &b, &c, &alpha, &beta, &gamma, &delta, &ic));
+        let cpu = env.cost_estimate().budget().cpu_instruction_cost();
+        let mem = env.cost_estimate().budget().memory_bytes_cost();
+        std::println!("verify(): cpu_instructions = {cpu}, memory_bytes = {mem}");
+        assert!(cpu < 100_000_000, "verify must fit the mainnet per-tx CPU limit");
     }
 
     /// Soundness smoke test: tampering with a public signal must break verification.
