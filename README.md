@@ -52,21 +52,42 @@ everything for Soroban:
 cd tools && npm install && node gen-fixture.mjs
 ```
 
+## Custom account (`contracts/account`)
+
+`SemaphoreAccount` is a Soroban custom account whose authorization *is* an anonymous
+Semaphore membership proof. `__check_auth` enforces:
+
+1. the proof verifies against the account's configured group root + verification key;
+2. the **signal is bound to `signature_payload`** — the circuit's `message` must equal
+   `keccak256(signature_payload) >> 8` (Semaphore's field hash), so a proof authorizes
+   exactly this transaction and cannot be replayed on another;
+3. the **nullifier is unused** (persistent registry) — each membership authorizes at most
+   once per scope.
+
+So whoever controls a group member identity can authorize the account without revealing
+*which* member. Tested against a real proof: valid proof authorizes, replayed nullifier
+rejected, wrong payload rejected (`cargo test -p semaphore-account`).
+
 ## Layout
 
 ```
-contracts/verifier   Groth16/BN254 verifier (Phase 1 prototype)
+contracts/verifier   Groth16/BN254 verifier (verify_encoded + verify contract)
+contracts/account    Semaphore-authorized custom account (__check_auth)
 fixtures             ground-truth proof + ceremony verification key (depth 2)
-tools                fixture generator (reproduces fixtures + the Rust fixture module)
+tools                fixture generators (reproduce fixtures from real proofs)
+scripts              testnet deploy + invoke
 ```
 
 ## Roadmap
 
-- **Phase 1 — done:** real ceremony proof verifies on Soroban BN254.
-- **Phase 2:** generic library — group management, nullifier registry (Persistent,
-  epoch-scoped), arbitrary signal bound to the proof, `ISemaphore`-aligned API.
-- **Phase 3+:** `__check_auth` custom-account integration; confidential multisig and
-  confidential relay/signing layers on top.
+- **Phase 1 — done:**
+  - real ceremony proof verifies on Soroban BN254 (unit test + **live on testnet**);
+  - `verify()` fits the budget (~29.1M instructions, under the 100M per-tx limit);
+  - `__check_auth` custom account: signal binding + nullifier replay guard.
+- **Phase 2:** generic library — group management, epoch-scoped nullifier registry,
+  `ISemaphore`-aligned API; full on-chain `__check_auth` auth-entry flow.
+- **Phase 3+:** confidential multisig (k-of-n nullifiers) and confidential relay/signing
+  layers on top.
 
 ## License
 
