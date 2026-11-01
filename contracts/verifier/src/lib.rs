@@ -1,0 +1,177 @@
+#![no_std]
+//! Phase-1 prototype: a Groth16/BN254 verifier for Semaphore v4 proofs on Soroban.
+//!
+//! Semaphore v4 uses BN254 (== Ethereum's alt_bn128) with 4 public inputs, in order:
+//!   [merkleTreeRoot, nullifier, hash(message), hash(scope)]
+//! so the verification key's IC vector has 5 points (nPublic + 1).
+//!
+//! Because Soroban's BN254 host functions are byte-for-byte EVM-compatible, a proof and
+//! verification key produced by Ethereum's Semaphore trusted-setup ceremony verify here
+//! unchanged. The milestone this crate proves: a REAL ceremony proof verifies via
+//! `env.crypto().bn254().pairing_check`.
+
+use soroban_sdk::{
+    contract, contractimpl,
+    crypto::bn254::{Bn254Fr, Bn254G1Affine, Bn254G2Affine},
+    vec, BytesN, Env, Vec,
+};
+
+#[cfg(test)]
+mod fixture;
+
+/// Groth16/BN254 verification key. `ic` must have `public_inputs + 1` points.
+pub struct Vk {
+    pub alpha: Bn254G1Affine,
+    pub beta: Bn254G2Affine,
+    pub gamma: Bn254G2Affine,
+    pub delta: Bn254G2Affine,
+    pub ic: Vec<Bn254G1Affine>,
+}
+
+/// Verify a Groth16 proof against `vk` and `pub_signals`.
+///
+/// Checks the pairing identity in product form:
+///   e(-A, B) · e(alpha, beta) · e(vk_x, gamma) · e(C, delta) == 1
+/// where vk_x = IC[0] + Σ pub_signals[i] · IC[i + 1].
+pub fn groth16_verify(
+    env: &Env,
+    vk: &Vk,
+    pub_signals: &Vec<Bn254Fr>,
+    a: &Bn254G1Affine,
+    b: &Bn254G2Affine,
+    c: &Bn254G1Affine,
+) -> bool {
+    let bn = env.crypto().bn254();
+
+    // vk_x = IC[0] + Σ pub_signals[i] · IC[i+1]
+    let mut vk_x = vk.ic.get(0).expect("IC must contain at least one point");
+    let n = pub_signals.len();
+    assert_eq!(vk.ic.len(), n + 1, "IC length must equal public inputs + 1");
+    for i in 0..n {
+        let ic_point = vk.ic.get(i + 1).unwrap();
+        let scalar = pub_signals.get(i).unwrap();
+        let term = bn.g1_mul(&ic_point, &scalar);
+        vk_x = bn.g1_add(&vk_x, &term);
+    }
+
+    let neg_a = -a.clone();
+    let g1 = vec![env, neg_a, vk.alpha.clone(), vk_x, c.clone()];
+    let g2 = vec![env, b.clone(), vk.beta.clone(), vk.gamma.clone(), vk.delta.clone()];
+    bn.pairing_check(g1, g2)
+}
+
+#[contract]
+pub struct SemaphoreVerifier;
+
+#[contractimpl]
+impl SemaphoreVerifier {
+    /// On-chain Groth16/BN254 verification entry point.
+    ///
+    /// `pub_signals` are 32-byte big-endian scalars; points use Soroban's uncompressed
+    /// BN254 encoding (G1 = X‖Y, 64B; G2 = Xc1‖Xc0‖Yc1‖Yc0, 128B).
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify(
+        env: Env,
+        pub_signals: Vec<BytesN<32>>,
+        a: BytesN<64>,
+        b: BytesN<128>,
+        c: BytesN<64>,
+        vk_alpha: BytesN<64>,
+        vk_beta: BytesN<128>,
+        vk_gamma: BytesN<128>,
+        vk_delta: BytesN<128>,
+        vk_ic: Vec<BytesN<64>>,
+    ) -> bool {
+        let mut signals = Vec::new(&env);
+        for s in pub_signals.iter() {
+            signals.push_back(Bn254Fr::from_bytes(s));
+        }
+        let mut ic = Vec::new(&env);
+        for p in vk_ic.iter() {
+            ic.push_back(Bn254G1Affine::from_bytes(p));
+        }
+        let vk = Vk {
+            alpha: Bn254G1Affine::from_bytes(vk_alpha),
+            beta: Bn254G2Affine::from_bytes(vk_beta),
+            gamma: Bn254G2Affine::from_bytes(vk_gamma),
+            delta: Bn254G2Affine::from_bytes(vk_delta),
+            ic,
+        };
+        groth16_verify(
+            &env,
+            &vk,
+            &signals,
+            &Bn254G1Affine::from_bytes(a),
+            &Bn254G2Affine::from_bytes(b),
+            &Bn254G1Affine::from_bytes(c),
+        )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::fixture::*;
+    use soroban_sdk::{vec, BytesN, Env};
+
+    fn g1(env: &Env, b: &[u8; 64]) -> Bn254G1Affine {
+        Bn254G1Affine::from_bytes(BytesN::from_array(env, b))
+    }
+    fn g2(env: &Env, b: &[u8; 128]) -> Bn254G2Affine {
+        Bn254G2Affine::from_bytes(BytesN::from_array(env, b))
+    }
+    fn fr(env: &Env, b: &[u8; 32]) -> Bn254Fr {
+        Bn254Fr::from_bytes(BytesN::from_array(env, b))
+    }
+
+    fn fixture_vk(env: &Env) -> Vk {
+        Vk {
+            alpha: g1(env, &VK_ALPHA),
+            beta: g2(env, &VK_BETA),
+            gamma: g2(env, &VK_GAMMA),
+            delta: g2(env, &VK_DELTA),
+            ic: vec![
+                env,
+                g1(env, &VK_IC_0),
+                g1(env, &VK_IC_1),
+                g1(env, &VK_IC_2),
+                g1(env, &VK_IC_3),
+                g1(env, &VK_IC_4),
+            ],
+        }
+    }
+
+    /// The milestone: a REAL Semaphore v4 ceremony proof (generated off-chain with
+    /// Ethereum's artifacts) verifies via Soroban's BN254 pairing check.
+    #[test]
+    fn verifies_real_semaphore_proof() {
+        let env = Env::default();
+        let vk = fixture_vk(&env);
+        let pub_signals = vec![&env, fr(&env, &PUB_0), fr(&env, &PUB_1), fr(&env, &PUB_2), fr(&env, &PUB_3)];
+        let a = g1(&env, &PROOF_A);
+        let b = g2(&env, &PROOF_B);
+        let c = g1(&env, &PROOF_C);
+        assert!(
+            groth16_verify(&env, &vk, &pub_signals, &a, &b, &c),
+            "a real Semaphore ceremony proof must verify on Soroban BN254"
+        );
+    }
+
+    /// Soundness smoke test: tampering with a public signal must break verification.
+    #[test]
+    fn rejects_tampered_public_signal() {
+        let env = Env::default();
+        let vk = fixture_vk(&env);
+        // Flip one bit of the nullifier (PUB_1).
+        let mut bad = PUB_1;
+        bad[31] ^= 0x01;
+        let pub_signals = vec![&env, fr(&env, &PUB_0), fr(&env, &bad), fr(&env, &PUB_2), fr(&env, &PUB_3)];
+        let a = g1(&env, &PROOF_A);
+        let b = g2(&env, &PROOF_B);
+        let c = g1(&env, &PROOF_C);
+        assert!(
+            !groth16_verify(&env, &vk, &pub_signals, &a, &b, &c),
+            "a proof with a tampered public signal must NOT verify"
+        );
+    }
+}

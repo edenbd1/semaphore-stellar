@@ -1,0 +1,15 @@
+{
+  "name": "semaphore-stellar-fixture-tools",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Reproduce the ground-truth Semaphore v4 test fixture for the Soroban verifier",
+  "scripts": { "gen": "node gen-fixture.mjs" },
+  "dependencies": {
+    "@semaphore-protocol/identity": "^4.13.0",
+    "@semaphore-protocol/group": "^4.13.0",
+    "@semaphore-protocol/proof": "^4.13.0",
+    "snarkjs": "^0.7.5",
+    "ethers": "^6.13.0"
+  }
+}
