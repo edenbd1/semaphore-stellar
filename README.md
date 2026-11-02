@@ -87,6 +87,20 @@ member rejected, wrong payload rejected. **Budget:** each proof is one pairing c
 (~29M instructions), a 2-of-n check ~58M — so a single transaction fits ~3 proofs under the
 100M per-tx limit; larger thresholds need batching (future work).
 
+## Confidential relay (`contracts/relay`) — the payer-privacy layer
+
+ZK hides *who* acts, but on a normal transaction the fee payer is public, which deanonymizes
+the member. `ConfidentialRelay` closes that gap: an anonymous member authorizes an action with
+a Semaphore proof and posts it off-chain; **any relayer** submits it (paying the Stellar fee
+via a fee-bump, so the member needs no funded, linkable account) and is paid a `tip` from a
+pool. `relay` binds `message = hash(action_digest)` and `scope = hash(scope_seed)`, verifies
+the proof, consumes the nullifier (one payout per authorization), and transfers the tip to the
+relayer. Live on testnet with the native XLM SAC: funding and a real tip payout move value, and
+a replayed authorization is rejected `AlreadyRelayed` (see `DEPLOYMENT.md`).
+
+This is the "why Stellar" edge: native fee-bump (CAP-15) + sponsored reserves (CAP-33) make a
+paying relayer a first-class citizen, and it is the strongest standardization (SEP) candidate.
+
 ## Layout
 
 ```
@@ -95,6 +109,7 @@ contracts/semaphore  generic ISemaphore-aligned library (groups, nullifiers, val
 contracts/account    Semaphore-authorized custom account (__check_auth)
 contracts/multisig   confidential k-of-n threshold account (__check_auth, single-tx)
 contracts/dao        proposal-based confidential multisig (async approvals, no tx ceiling)
+contracts/relay      confidential relay — payer-privacy: a relayer pays & is tipped from a pool
 fixtures             ground-truth proof + ceremony verification key (depth 2)
 tools                fixture generators (reproduce fixtures from real proofs)
 scripts              testnet deploy + invoke + full lib flow
@@ -114,8 +129,11 @@ scripts              testnet deploy + invoke + full lib flow
 - **Phase 3 — done:** confidential **k-of-n threshold** account (`contracts/multisig`,
   single-tx) + **proposal-based confidential multisig** (`contracts/dao`, async approvals —
   one proof per tx, no ~3-proof ceiling). Both live on testnet (see `DEPLOYMENT.md`).
+- **Confidential relay — done:** `contracts/relay` — payer-privacy relay with a tip pool,
+  real value movement live on testnet.
 - **Next:** epoch-scoped root-validity window + `ISemaphore` event parity; full on-chain
-  `__check_auth` auth-entry flow; the **confidential relay/signing layer** (payer-privacy edge).
+  `__check_auth` auth-entry flow; relayer-bound (exclusive) relays; SEP drafts
+  (membership interface + relay protocol).
 
 ## License
 
