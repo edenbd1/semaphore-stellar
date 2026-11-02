@@ -11,9 +11,36 @@
 //! Poseidon that byte-matches circomlib (deferred to a future on-chain-tree mode).
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype, Address, BytesN, Env, Vec,
 };
 use semaphore_verifier::verify_encoded;
+
+#[contractevent]
+pub struct GroupCreated {
+    pub group_id: u32,
+    pub admin: Address,
+}
+
+#[contractevent]
+pub struct RootUpdated {
+    pub group_id: u32,
+    pub root: BytesN<32>,
+    pub depth: u32,
+}
+
+#[contractevent]
+pub struct AdminTransferred {
+    pub group_id: u32,
+    pub admin: Address,
+}
+
+#[contractevent]
+pub struct ProofValidated {
+    pub group_id: u32,
+    pub nullifier: BytesN<32>,
+    pub message: BytesN<32>,
+    pub scope: BytesN<32>,
+}
 
 /// BN254 scalar field order `r`, big-endian. Public inputs must be canonical (`< r`), else the
 /// host silently reduces mod `r` and a non-canonical nullifier could evade the replay guard.
@@ -96,10 +123,10 @@ impl Semaphore {
     pub fn create_group(env: Env, admin: Address) -> u32 {
         admin.require_auth();
         let id: u32 = env.storage().instance().get(&DataKey::GroupCount).unwrap_or(0);
-        let group = Group { admin, root: BytesN::from_array(&env, &[0u8; 32]), depth: 0 };
+        let group = Group { admin: admin.clone(), root: BytesN::from_array(&env, &[0u8; 32]), depth: 0 };
         env.storage().persistent().set(&DataKey::Group(id), &group);
         env.storage().instance().set(&DataKey::GroupCount, &(id + 1));
-        env.events().publish((symbol_short!("grp_new"), id), ());
+        GroupCreated { group_id: id, admin }.publish(&env);
         id
     }
 
@@ -128,7 +155,7 @@ impl Semaphore {
         group.root = new_root.clone();
         group.depth = depth;
         env.storage().persistent().set(&DataKey::Group(group_id), &group);
-        env.events().publish((symbol_short!("grp_root"), group_id), (new_root, depth));
+        RootUpdated { group_id, root: new_root.clone(), depth }.publish(&env);
         Ok(())
     }
 
@@ -142,7 +169,7 @@ impl Semaphore {
         group.admin.require_auth();
         group.admin = new_admin.clone();
         env.storage().persistent().set(&DataKey::Group(group_id), &group);
-        env.events().publish((symbol_short!("grp_admin"), group_id), new_admin);
+        AdminTransferred { group_id, admin: new_admin.clone() }.publish(&env);
         Ok(())
     }
 
@@ -236,8 +263,7 @@ impl Semaphore {
             return Err(Error::NullifierAlreadyUsed);
         }
         env.storage().persistent().set(&key, &());
-        env.events()
-            .publish((symbol_short!("validated"), group_id), (nullifier, message, scope));
+        ProofValidated { group_id, nullifier: nullifier.clone(), message: message.clone(), scope: scope.clone() }.publish(&env);
         Ok(())
     }
 
