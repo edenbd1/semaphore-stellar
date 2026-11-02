@@ -8,6 +8,10 @@ publish = false
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["build-contract"]
+build-contract = []
+
 [dependencies]
 soroban-sdk = "29"
 

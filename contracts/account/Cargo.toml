@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "29"
-semaphore-verifier = { path = "../verifier" }
+semaphore-verifier = { path = "../verifier", default-features = false }
 
 [dev-dependencies]
 soroban-sdk = { version = "29", features = ["testutils"] }

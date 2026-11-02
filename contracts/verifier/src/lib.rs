@@ -105,9 +105,14 @@ pub fn verify_encoded(
     )
 }
 
+/// The standalone verifier contract. Gated behind the `build-contract` feature so that when
+/// this crate is used as a library dependency it exposes only `verify_encoded`, not a
+/// contract entry point (which would otherwise leak a `verify` export into the dependent).
+#[cfg(feature = "build-contract")]
 #[contract]
 pub struct SemaphoreVerifier;
 
+#[cfg(feature = "build-contract")]
 #[contractimpl]
 impl SemaphoreVerifier {
     /// On-chain Groth16/BN254 verification entry point.
@@ -222,6 +227,7 @@ mod test {
 
     /// Objective (b): measure the CPU instruction cost of an on-chain `verify` call, to
     /// confirm it fits a `__check_auth` budget (mainnet tx limit is 100,000,000 insns).
+    #[cfg(feature = "build-contract")]
     #[test]
     fn reports_verify_budget() {
         let env = Env::default();
