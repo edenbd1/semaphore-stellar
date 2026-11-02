@@ -32,3 +32,18 @@ scripts/invoke-verify.sh <CONTRACT_ID> semaphore-dev --send   # persisted tx
 | Replaying the same nullifier | rejected on-chain with `Error(Contract, #7)` = `NullifierAlreadyUsed` |
 
 Run it: `scripts/semaphore-flow.sh`.
+
+## Confidential DAO (Phase 3, proposal-based) — full flow live on testnet
+
+A proposal-based confidential multisig: members approve asynchronously (one proof per
+transaction), removing the ~3-proofs/tx ceiling.
+
+| | |
+|---|---|
+| Contract ID | `CBJYJ3Z35NZO3HQMJCWVH3PEW5IW3AOVLHPUI66G5BQPGYYRK65I4EB7` |
+| Flow | `create_proposal` → `approve` (member A) → `approve` (member B) → `execute` |
+| Result | proposal `{approvals: 2, executed: true}`, `executed` event emitted |
+| Double-approve same proposal | rejected `Error(Contract, #4)` = `AlreadyApproved` |
+| Approve an executed proposal | rejected `Error(Contract, #3)` = `AlreadyExecuted` |
+
+Run it: `scripts/dao-flow.sh`.

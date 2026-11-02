@@ -1403,6 +1403,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "semaphore-dao"
+version = "0.0.1"
+dependencies = [
+ "semaphore-verifier",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "semaphore-multisig"
 version = "0.0.1"
 dependencies = [

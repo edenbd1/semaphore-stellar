@@ -93,7 +93,8 @@ member rejected, wrong payload rejected. **Budget:** each proof is one pairing c
 contracts/verifier   Groth16/BN254 verifier (verify_encoded + verify contract)
 contracts/semaphore  generic ISemaphore-aligned library (groups, nullifiers, validate_proof)
 contracts/account    Semaphore-authorized custom account (__check_auth)
-contracts/multisig   confidential k-of-n threshold account (__check_auth)
+contracts/multisig   confidential k-of-n threshold account (__check_auth, single-tx)
+contracts/dao        proposal-based confidential multisig (async approvals, no tx ceiling)
 fixtures             ground-truth proof + ceremony verification key (depth 2)
 tools                fixture generators (reproduce fixtures from real proofs)
 scripts              testnet deploy + invoke + full lib flow
@@ -110,11 +111,11 @@ scripts              testnet deploy + invoke + full lib flow
   `validate_proof`, canonical-input (`< r`) checks, group-scoped nullifier registry.
   **Full flow live on testnet** (deploy → register_vkey → create_group → update_root →
   validate a real proof → replay rejected with `NullifierAlreadyUsed`); see `DEPLOYMENT.md`.
-- **Phase 3 — done:** confidential **k-of-n threshold** account (`contracts/multisig`) —
-  distinct-nullifier membership proofs, signal+scope bound to the payload, budget measured.
+- **Phase 3 — done:** confidential **k-of-n threshold** account (`contracts/multisig`,
+  single-tx) + **proposal-based confidential multisig** (`contracts/dao`, async approvals —
+  one proof per tx, no ~3-proof ceiling). Both live on testnet (see `DEPLOYMENT.md`).
 - **Next:** epoch-scoped root-validity window + `ISemaphore` event parity; full on-chain
-  `__check_auth` auth-entry flow; confidential relay/signing layer (the payer-privacy edge);
-  threshold batching beyond ~3 proofs/tx.
+  `__check_auth` auth-entry flow; the **confidential relay/signing layer** (payer-privacy edge).
 
 ## License
 
