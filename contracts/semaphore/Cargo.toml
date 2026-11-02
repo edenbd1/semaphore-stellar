@@ -1,16 +1,21 @@
 [package]
-name = "semaphore"
+name = "semaphore-stellar"
 version = "0.0.1"
 edition.workspace = true
 license.workspace = true
-publish = false
+description = "A faithful Semaphore v4 port to Soroban/Stellar: anonymous membership + nullifier + signal (BN254)"
+repository = "https://github.com/edenbd1/semaphore-stellar"
+readme = "README.md"
+keywords = ["semaphore", "stellar", "soroban", "zk", "bn254"]
+categories = ["cryptography", "no-std"]
 
 [lib]
+name = "semaphore"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "29"
-semaphore-verifier = { path = "../verifier", default-features = false }
+semaphore-stellar-verifier = { path = "../verifier", version = "0.0.1", default-features = false }
 
 [dev-dependencies]
 soroban-sdk = { version = "29", features = ["testutils"] }

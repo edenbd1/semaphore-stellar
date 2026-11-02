@@ -1387,15 +1387,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "semaphore"
+name = "semaphore-stellar"
 version = "0.0.1"
 dependencies = [
- "semaphore-verifier",
+ "semaphore-stellar-verifier",
  "soroban-sdk",
 ]
 
 [[package]]
-name = "semaphore-verifier"
+name = "semaphore-stellar-verifier"
 version = "0.0.1"
 dependencies = [
  "soroban-sdk",
