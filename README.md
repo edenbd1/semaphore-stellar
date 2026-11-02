@@ -68,14 +68,35 @@ So whoever controls a group member identity can authorize the account without re
 *which* member. Tested against a real proof: valid proof authorizes, replayed nullifier
 rejected, wrong payload rejected (`cargo test -p semaphore-account`).
 
+## Confidential multisig (`contracts/multisig`)
+
+`SemaphoreMultisig` is a confidential **k-of-n threshold** custom account. To authorize a
+transaction, `k` *distinct* members each submit a Semaphore proof; `__check_auth`:
+
+1. binds every proof's signal **and** scope to `signature_payload`
+   (`message = scope = keccak256(payload) >> 8`) — the proofs authorize exactly this
+   transaction, and not a weaker rule (anti rule-downgrade);
+2. verifies each proof against the group root + verification key;
+3. requires the nullifiers to be **pairwise distinct** — a nullifier is deterministic in
+   `(scope, member)`, so distinct nullifiers for one payload prove `k` distinct members
+   signed *without revealing which*;
+4. requires `k >= threshold`.
+
+Tested (real 2-of-3 proofs): threshold met authorizes, below-threshold rejected, duplicate
+member rejected, wrong payload rejected. **Budget:** each proof is one pairing check
+(~29M instructions), a 2-of-n check ~58M — so a single transaction fits ~3 proofs under the
+100M per-tx limit; larger thresholds need batching (future work).
+
 ## Layout
 
 ```
 contracts/verifier   Groth16/BN254 verifier (verify_encoded + verify contract)
+contracts/semaphore  generic ISemaphore-aligned library (groups, nullifiers, validate_proof)
 contracts/account    Semaphore-authorized custom account (__check_auth)
+contracts/multisig   confidential k-of-n threshold account (__check_auth)
 fixtures             ground-truth proof + ceremony verification key (depth 2)
 tools                fixture generators (reproduce fixtures from real proofs)
-scripts              testnet deploy + invoke
+scripts              testnet deploy + invoke + full lib flow
 ```
 
 ## Roadmap
@@ -89,10 +110,11 @@ scripts              testnet deploy + invoke
   `validate_proof`, canonical-input (`< r`) checks, group-scoped nullifier registry.
   **Full flow live on testnet** (deploy → register_vkey → create_group → update_root →
   validate a real proof → replay rejected with `NullifierAlreadyUsed`); see `DEPLOYMENT.md`.
-- **Phase 2 next:** epoch-scoped root-validity window, `ISemaphore` event parity, and the
-  full on-chain `__check_auth` auth-entry flow for the custom account.
-- **Phase 3+:** confidential multisig (k-of-n nullifiers) and confidential relay/signing
-  layers on top.
+- **Phase 3 — done:** confidential **k-of-n threshold** account (`contracts/multisig`) —
+  distinct-nullifier membership proofs, signal+scope bound to the payload, budget measured.
+- **Next:** epoch-scoped root-validity window + `ISemaphore` event parity; full on-chain
+  `__check_auth` auth-entry flow; confidential relay/signing layer (the payer-privacy edge);
+  threshold batching beyond ~3 proofs/tx.
 
 ## License
 
