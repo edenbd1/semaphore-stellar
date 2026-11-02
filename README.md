@@ -63,9 +63,14 @@ cd tools && npm install && node gen-fixture.mjs
 ## Roadmap
 
 - **Done:** Groth16/BN254 verifier (real ceremony proof, on-chain) + the generic library, live
-  on testnet; confidential multisig and payer-privacy relay in their own repos.
-- **Next:** epoch-scoped root-validity window + `ISemaphore` event parity; on-chain tree mode
-  (circomlib-matching Poseidon via CAP-75); SEP drafts (membership interface + relay protocol).
+  on testnet; **root-validity window + admin transfer + `ISemaphore` getters**; confidential
+  multisig and payer-privacy relay (incl. a real on-chain `__check_auth` and an explicit
+  fee-bump) in their own repos.
+- **On-chain trustless tree:** crypto-feasible (CAP-75 reproduces circomlib Poseidon) but
+  blocked by soroban-sdk 29 keeping the primitive private — see
+  [docs/ONCHAIN-TREE-POSEIDON.md](./docs/ONCHAIN-TREE-POSEIDON.md).
+- **Next:** on-chain tree once the SDK exposes Poseidon; SEP drafts (membership interface +
+  relay protocol).
 
 ## License
 
