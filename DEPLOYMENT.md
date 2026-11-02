@@ -30,3 +30,19 @@ scripts/deploy-testnet.sh                 # build + deploy the verifier
 scripts/invoke-verify.sh <CONTRACT_ID>    # read-only simulation -> true
 scripts/semaphore-flow.sh                 # full library lifecycle
 ```
+
+## Trustless on-chain tree folded into the library — verified on testnet
+
+The sdk-29 `semaphore` library can source a group's root from the sdk-28 `SemaphoreGroups`
+contract (which computes it on-chain from the real members), instead of an admin-pushed root.
+`verify_with_onchain_root` cross-reads that root and verifies the proof against it.
+
+| | |
+|---|---|
+| `semaphore` (sdk 29) | `CASZTKMIG2WUK53A47D5BUWNZJHEPUQEBTZWUKYAAVP5LOFV33P5ZYYW` |
+| `SemaphoreGroups` (sdk 28) | `CBMLCUMADQ6H4SLHJAL7LMXJTAOEL74ZGLB5ZDFVL7NL4OHA5DZQ2YV3` |
+| Flow | group of 3 real commitments added to `groups` → on-chain root equals the off-chain Semaphore `Group` root → `verify_with_onchain_root` returns `true` |
+| `verify_with_onchain_root` tx | [`cbcdfcc2…`](https://stellar.expert/explorer/testnet/tx/cbcdfcc2ef96fc40af1f70c42c6581821e3556113c5a4dff0fc627fd55d5d3cf) → `true` |
+
+The root is computed on-chain from the real members and read cross-contract, so no admin can
+forge it. This folds the trustless tree into the library by composition (no SDK downgrade).
