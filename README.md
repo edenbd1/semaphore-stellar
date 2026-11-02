@@ -84,8 +84,13 @@ scripts              testnet deploy + invoke
   - real ceremony proof verifies on Soroban BN254 (unit test + **live on testnet**);
   - `verify()` fits the budget (~29.1M instructions, under the 100M per-tx limit);
   - `__check_auth` custom account: signal binding + nullifier replay guard.
-- **Phase 2:** generic library — group management, epoch-scoped nullifier registry,
-  `ISemaphore`-aligned API; full on-chain `__check_auth` auth-entry flow.
+- **Phase 2 — done:** generic `Semaphore` library (`contracts/semaphore`) — groups
+  (off-chain tree + on-chain root), per-depth vkey registry, `verify_proof` /
+  `validate_proof`, canonical-input (`< r`) checks, group-scoped nullifier registry.
+  **Full flow live on testnet** (deploy → register_vkey → create_group → update_root →
+  validate a real proof → replay rejected with `NullifierAlreadyUsed`); see `DEPLOYMENT.md`.
+- **Phase 2 next:** epoch-scoped root-validity window, `ISemaphore` event parity, and the
+  full on-chain `__check_auth` auth-entry flow for the custom account.
 - **Phase 3+:** confidential multisig (k-of-n nullifiers) and confidential relay/signing
   layers on top.
 
