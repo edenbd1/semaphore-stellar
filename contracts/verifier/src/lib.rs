@@ -24,6 +24,8 @@ extern crate std;
 mod fixture;
 #[cfg(test)]
 mod fixture_multidepth;
+#[cfg(test)]
+mod fixture_multidepth_hi;
 
 /// Groth16/BN254 verification key. `ic` must have `public_inputs + 1` points.
 pub struct Vk {
@@ -337,5 +339,19 @@ mod multidepth_test {
         assert!(!verify_case(&env, [D3_PUB_0, D3_PUB_1, D3_PUB_2, D3_PUB_3], D3_A, D3_B, D3_C,
             D4_VK_ALPHA, D4_VK_BETA, D4_VK_GAMMA, D4_VK_DELTA,
             [D4_VK_IC_0, D4_VK_IC_1, D4_VK_IC_2, D4_VK_IC_3, D4_VK_IC_4]), "cross-depth vkey must fail");
+    }
+
+    /// Real proofs at production-like depths 8 (129 members) and 12 (2049 members) verify too —
+    /// the per-depth vkey mechanism scales across the realistic range.
+    #[test]
+    fn verifies_higher_depths() {
+        use crate::fixture_multidepth_hi::*;
+        let env = Env::default();
+        assert!(verify_case(&env, [D8_PUB_0, D8_PUB_1, D8_PUB_2, D8_PUB_3], D8_A, D8_B, D8_C,
+            D8_VK_ALPHA, D8_VK_BETA, D8_VK_GAMMA, D8_VK_DELTA,
+            [D8_VK_IC_0, D8_VK_IC_1, D8_VK_IC_2, D8_VK_IC_3, D8_VK_IC_4]), "depth 8");
+        assert!(verify_case(&env, [D12_PUB_0, D12_PUB_1, D12_PUB_2, D12_PUB_3], D12_A, D12_B, D12_C,
+            D12_VK_ALPHA, D12_VK_BETA, D12_VK_GAMMA, D12_VK_DELTA,
+            [D12_VK_IC_0, D12_VK_IC_1, D12_VK_IC_2, D12_VK_IC_3, D12_VK_IC_4]), "depth 12");
     }
 }
