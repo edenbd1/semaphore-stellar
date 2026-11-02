@@ -1,64 +1,32 @@
-# Testnet deployment
+# Testnet deployment (library)
 
-The Phase-1 verifier is deployed and verified live on Stellar **testnet**.
+The verifier and the generic Semaphore library are deployed and verified live on Stellar
+**testnet**. (Multisig and relay deployments live in their own repos.)
+
+## Verifier
 
 | | |
 |---|---|
-| Network | Testnet (`Test SDF Network ; September 2015`) |
 | Contract ID | `CCMZJTOGVVXOAL5C72INJYGK4M4V2MSPGB3NH2GM4PRBNW7AIVQMZK5N` |
 | Deploy tx | [`bbfdf070…`](https://stellar.expert/explorer/testnet/tx/bbfdf0700be0400c7999db7dd7ab02642b7e654b41b07e8f85ba2b6759ef3b99) |
-| `verify()` tx (returns `true`) | [`cd21cebd…`](https://stellar.expert/explorer/testnet/tx/cd21cebd99e308916d6b3b7a2cd9ca53ea496447cb8e7073aaf52ec4f28acd71) |
+| `verify()` → `true` | [`cd21cebd…`](https://stellar.expert/explorer/testnet/tx/cd21cebd99e308916d6b3b7a2cd9ca53ea496447cb8e7073aaf52ec4f28acd71) |
 
-Invoking `verify()` with the real Semaphore ceremony proof returns **`true`** on-chain,
-confirming that an Ethereum-ceremony Groth16/BN254 proof verifies unchanged on Stellar.
+Invoking `verify()` with the real Semaphore ceremony proof returns **`true`** on-chain.
 
-## Reproduce
-
-```bash
-scripts/deploy-testnet.sh                 # build + deploy, prints a CONTRACT_ID
-scripts/invoke-verify.sh <CONTRACT_ID>    # read-only simulation -> true
-scripts/invoke-verify.sh <CONTRACT_ID> semaphore-dev --send   # persisted tx
-```
-
-## Semaphore library (Phase 2) — full flow live on testnet
+## Semaphore library — full flow live
 
 | | |
 |---|---|
 | Contract ID | `CBW3YM227O5VHLGVYE46QEMKA5H5ZOMG2EESKLLWX7X7RQ6MG3DQOZWO` |
-| Deploy tx (with constructor admin) | [`a5b4cb8e…`](https://stellar.expert/explorer/testnet/tx/a5b4cb8ef52ca7d4950bfb87173e13c721cd846c5f2c70f5878db0811914db3b) |
 | `register_vkey(2, vk)` | [`6095e1b7…`](https://stellar.expert/explorer/testnet/tx/6095e1b7e23176f12baea9dce2016f4e29a9101dd47663148ed516a79c9ca667) |
 | `create_group` | [`64484969…`](https://stellar.expert/explorer/testnet/tx/64484969d32b7bca1c82d7a22ac2b3f71e77b777bdc4cbe48c650094632904c9) |
-| `validate_proof` (real proof → `validated` event) | [`d1b9c932…`](https://stellar.expert/explorer/testnet/tx/d1b9c9323b212cff29307e41b904f00bdb6b703bdfe6901963c6196415b9a695) |
-| Replaying the same nullifier | rejected on-chain with `Error(Contract, #7)` = `NullifierAlreadyUsed` |
+| `validate_proof` (real proof → `validated`) | [`d1b9c932…`](https://stellar.expert/explorer/testnet/tx/d1b9c9323b212cff29307e41b904f00bdb6b703bdfe6901963c6196415b9a695) |
+| Replaying the same nullifier | rejected `Error(Contract, #7)` = `NullifierAlreadyUsed` |
 
-Run it: `scripts/semaphore-flow.sh`.
+## Reproduce
 
-## Confidential DAO (Phase 3, proposal-based) — full flow live on testnet
-
-A proposal-based confidential multisig: members approve asynchronously (one proof per
-transaction), removing the ~3-proofs/tx ceiling.
-
-| | |
-|---|---|
-| Contract ID | `CBJYJ3Z35NZO3HQMJCWVH3PEW5IW3AOVLHPUI66G5BQPGYYRK65I4EB7` |
-| Flow | `create_proposal` → `approve` (member A) → `approve` (member B) → `execute` |
-| Result | proposal `{approvals: 2, executed: true}`, `executed` event emitted |
-| Double-approve same proposal | rejected `Error(Contract, #4)` = `AlreadyApproved` |
-| Approve an executed proposal | rejected `Error(Contract, #3)` = `AlreadyExecuted` |
-
-Run it: `scripts/dao-flow.sh`.
-
-## Confidential relay (Phase 3, the payer-privacy layer) — live on testnet
-
-An anonymous member authorizes an action; any relayer submits it (paying the Stellar fee via
-fee-bump off-chain) and is paid a tip from a pool — without learning which member authorized it.
-
-| | |
-|---|---|
-| Contract ID | `CB7LT647EIHJXBT2QO556BBGCZPEUG42SMZ3OPIC6GASBAZFENGYDMSA` |
-| Pool token | native XLM SAC `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
-| Flow | `fund` (0.5 XLM) → `pool_balance` = 5,000,000 → `relay` → `pool_balance` = 4,000,000 |
-| Result | `relayed` event, tip of 1,000,000 stroops (0.1 XLM) paid from pool to relayer |
-| Replaying the same authorization | rejected `Error(Contract, #4)` = `AlreadyRelayed` |
-
-Run it: `scripts/relay-flow.sh`.
+```bash
+scripts/deploy-testnet.sh                 # build + deploy the verifier
+scripts/invoke-verify.sh <CONTRACT_ID>    # read-only simulation -> true
+scripts/semaphore-flow.sh                 # full library lifecycle
+```

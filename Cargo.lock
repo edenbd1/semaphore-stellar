@@ -1395,38 +1395,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "semaphore-account"
-version = "0.0.1"
-dependencies = [
- "semaphore-verifier",
- "soroban-sdk",
-]
-
-[[package]]
-name = "semaphore-dao"
-version = "0.0.1"
-dependencies = [
- "semaphore-verifier",
- "soroban-sdk",
-]
-
-[[package]]
-name = "semaphore-multisig"
-version = "0.0.1"
-dependencies = [
- "semaphore-verifier",
- "soroban-sdk",
-]
-
-[[package]]
-name = "semaphore-relay"
-version = "0.0.1"
-dependencies = [
- "semaphore-verifier",
- "soroban-sdk",
-]
-
-[[package]]
 name = "semaphore-verifier"
 version = "0.0.1"
 dependencies = [
