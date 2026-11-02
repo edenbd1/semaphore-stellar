@@ -21,5 +21,13 @@ circomlib's exact t=3 constants + test vectors (e.g. `poseidon2([1,2]) =
 2. Pin the whole stack to soroban-sdk 28.x + `soroban-poseidon` 28 (backwards step; our deployed
    contracts are on 29).
 
-**Until then:** the library uses the off-chain-tree + on-chain-root model (admin pushes roots),
-hardened with a root-validity window (see the `semaphore` contract) so it is safe and usable.
+**DONE (2026-11-02) via option 2, in its own repo:**
+[semaphore-stellar-groups](https://github.com/edenbd1/semaphore-stellar-groups) builds a
+trustless on-chain LeanIMT pinned to soroban-sdk 28 + `soroban-poseidon` 28. It is verified
+live on testnet: adding members 1..5 yields the exact @zk-kit LeanIMT root
+`11512324111804726054755717642058292259866309947044530224809882918003853859592`, computed
+on-chain (the admin cannot forge it). It is isolated in its own repo so the sdk-29 contracts
+here are untouched; the sdk-29 verifier consumes the root unchanged.
+
+The off-chain-tree + on-chain-root model (hardened with a root-validity window) remains the
+default for the sdk-29 library; the on-chain tree is the trustless upgrade path.

@@ -16,6 +16,9 @@ own repositories:
   confidential custom accounts: single-signer, k-of-n threshold, and a proposal-based DAO.
 - **[semaphore-stellar-relay](https://github.com/edenbd1/semaphore-stellar-relay)** — the
   payer-privacy relay: a relayer pays the fee for an anonymous member and is tipped from a pool.
+- **[semaphore-stellar-groups](https://github.com/edenbd1/semaphore-stellar-groups)** — a
+  *trustless* on-chain group tree: the Merkle root is computed on-chain (LeanIMT + circomlib
+  Poseidon), so no admin can forge it.
 
 ## Contracts
 
@@ -66,11 +69,12 @@ cd tools && npm install && node gen-fixture.mjs
   on testnet; **root-validity window + admin transfer + `ISemaphore` getters**; confidential
   multisig and payer-privacy relay (incl. a real on-chain `__check_auth` and an explicit
   fee-bump) in their own repos.
-- **On-chain trustless tree:** crypto-feasible (CAP-75 reproduces circomlib Poseidon) but
-  blocked by soroban-sdk 29 keeping the primitive private — see
+- **On-chain trustless tree — done** (in
+  [semaphore-stellar-groups](https://github.com/edenbd1/semaphore-stellar-groups), on sdk 28):
+  LeanIMT + circomlib Poseidon computed on-chain, verified live on testnet; see
   [docs/ONCHAIN-TREE-POSEIDON.md](./docs/ONCHAIN-TREE-POSEIDON.md).
-- **Next:** on-chain tree once the SDK exposes Poseidon; SEP drafts (membership interface +
-  relay protocol).
+- **Next:** fold the on-chain tree into the sdk-29 library once the SDK exposes a public
+  Poseidon; SEP drafts (membership interface + relay protocol).
 
 ## License
 
