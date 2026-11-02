@@ -515,22 +515,42 @@
           "v0": {
             "topics": [
               {
-                "symbol": "validated"
-              },
-              {
-                "u32": 0
+                "symbol": "proof_validated"
               }
             ],
             "data": {
-              "vec": [
+              "map": [
                 {
-                  "bytes": "0f26c94ccf09ea88e12ed44a99d454fe7d95bdfceb1db9c86d767b782c99cf68"
+                  "key": {
+                    "symbol": "group_id"
+                  },
+                  "val": {
+                    "u32": 0
+                  }
                 },
                 {
-                  "bytes": "007af6d3b1e82091bf10a9f741dd8ca446276fdaeffdde6c0308a0819d0a19df"
+                  "key": {
+                    "symbol": "message"
+                  },
+                  "val": {
+                    "bytes": "007af6d3b1e82091bf10a9f741dd8ca446276fdaeffdde6c0308a0819d0a19df"
+                  }
                 },
                 {
-                  "bytes": "008cf0cd5c539b0057a4ed45b061881648b2c07ff2f8fb3db282cf0551662f40"
+                  "key": {
+                    "symbol": "nullifier"
+                  },
+                  "val": {
+                    "bytes": "0f26c94ccf09ea88e12ed44a99d454fe7d95bdfceb1db9c86d767b782c99cf68"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "scope"
+                  },
+                  "val": {
+                    "bytes": "008cf0cd5c539b0057a4ed45b061881648b2c07ff2f8fb3db282cf0551662f40"
+                  }
                 }
               ]
             }

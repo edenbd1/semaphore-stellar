@@ -10,8 +10,9 @@
 //! unchanged. The milestone this crate proves: a REAL ceremony proof verifies via
 //! `env.crypto().bn254().pairing_check`.
 
+#[cfg(feature = "build-contract")]
+use soroban_sdk::{contract, contractimpl};
 use soroban_sdk::{
-    contract, contractimpl,
     crypto::bn254::{Bn254Fr, Bn254G1Affine, Bn254G2Affine},
     vec, BytesN, Env, Vec,
 };

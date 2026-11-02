@@ -4,7 +4,6 @@ use soroban_sdk::{testutils::{Address as _, Ledger as _}, vec, Address, BytesN, 
 
 struct Fix {
     env: Env,
-    client_id: Address,
     admin: Address,
     group_id: u32,
 }
@@ -35,7 +34,7 @@ fn setup() -> (Fix, SemaphoreClient<'static>) {
     client.register_vkey(&DEPTH, &vk(&env));
     let group_id = client.create_group(&admin);
     client.update_group_root(&group_id, &BytesN::from_array(&env, &ROOT), &DEPTH);
-    (Fix { env, client_id: id, admin, group_id }, client)
+    (Fix { env, admin, group_id }, client)
 }
 
 fn proof_parts(env: &Env) -> (BytesN<32>, BytesN<32>, BytesN<32>, BytesN<32>, BytesN<64>, BytesN<128>, BytesN<64>) {
