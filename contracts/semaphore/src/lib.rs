@@ -11,7 +11,8 @@
 //! Poseidon that byte-matches circomlib (deferred to a future on-chain-tree mode).
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, Address, BytesN, Env, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype, vec, Address, BytesN, Env,
+    IntoVal, Symbol, Vec, U256,
 };
 use semaphore_verifier::verify_encoded;
 
@@ -265,6 +266,38 @@ impl Semaphore {
         env.storage().persistent().set(&key, &());
         ProofValidated { group_id, nullifier: nullifier.clone(), message: message.clone(), scope: scope.clone() }.publish(&env);
         Ok(())
+    }
+
+    /// Trustless verification: source the group's Merkle root from an on-chain `SemaphoreGroups`
+    /// contract (which computes it from the real members, so no admin can forge it) and verify a
+    /// proof against it. Folds the trustless on-chain tree into the library by composition.
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_with_onchain_root(
+        env: Env,
+        groups_contract: Address,
+        group_id: u32,
+        depth: u32,
+        nullifier: BytesN<32>,
+        message: BytesN<32>,
+        scope: BytesN<32>,
+        a: BytesN<64>,
+        b: BytesN<128>,
+        c: BytesN<64>,
+    ) -> Result<bool, Error> {
+        // Cross-contract read of the authoritative, on-chain-computed root.
+        let root_u256: U256 = env.invoke_contract(
+            &groups_contract,
+            &Symbol::new(&env, "root"),
+            vec![&env, group_id.into_val(&env)],
+        );
+        let root: BytesN<32> = root_u256.to_be_bytes().try_into().unwrap();
+        Self::check_canonical(&root, &nullifier, &message, &scope)?;
+        let vk: VkData = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Vk(depth))
+            .ok_or(Error::VkNotRegistered)?;
+        Ok(Self::run_verify(&env, &vk, &root, &nullifier, &message, &scope, &a, &b, &c))
     }
 
     fn admin(env: &Env) -> Result<Address, Error> {
