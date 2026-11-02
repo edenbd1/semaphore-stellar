@@ -66,7 +66,14 @@ pub enum DataKey {
     GroupCount,
     Group(u32),
     Nullifier(u32, BytesN<32>),
+    /// A superseded root stays valid until this ledger (root-validity window).
+    HistoricalRoot(u32, BytesN<32>),
 }
+
+/// How long (in ledgers) a superseded root remains accepted, so a proof built against a root
+/// that was current when the proof was made still validates after the tree moves on.
+/// ~5s/ledger → ~17280 ledgers ≈ 24h.
+const ROOT_VALIDITY_LEDGERS: u32 = 17280;
 
 #[contract]
 pub struct Semaphore;
@@ -112,11 +119,58 @@ impl Semaphore {
         if !is_canonical(&new_root) {
             return Err(Error::NonCanonicalInput);
         }
+        // Archive the outgoing root so proofs built against it stay valid for a window.
+        let old = group.root.clone();
+        if old != BytesN::from_array(&env, &[0u8; 32]) {
+            let expiry = env.ledger().sequence() + ROOT_VALIDITY_LEDGERS;
+            env.storage().persistent().set(&DataKey::HistoricalRoot(group_id, old), &expiry);
+        }
         group.root = new_root.clone();
         group.depth = depth;
         env.storage().persistent().set(&DataKey::Group(group_id), &group);
         env.events().publish((symbol_short!("grp_root"), group_id), (new_root, depth));
         Ok(())
+    }
+
+    /// Transfer a group's admin (current group admin only).
+    pub fn transfer_group_admin(env: Env, group_id: u32, new_admin: Address) -> Result<(), Error> {
+        let mut group: Group = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Group(group_id))
+            .ok_or(Error::GroupNotFound)?;
+        group.admin.require_auth();
+        group.admin = new_admin.clone();
+        env.storage().persistent().set(&DataKey::Group(group_id), &group);
+        env.events().publish((symbol_short!("grp_admin"), group_id), new_admin);
+        Ok(())
+    }
+
+    /// Whether `root` is currently accepted for `group_id` (current root, or a superseded root
+    /// still inside its validity window).
+    pub fn is_valid_root(env: Env, group_id: u32, root: BytesN<32>) -> Result<bool, Error> {
+        let group: Group =
+            env.storage().persistent().get(&DataKey::Group(group_id)).ok_or(Error::GroupNotFound)?;
+        Ok(Self::root_accepted(&env, group_id, &group, &root))
+    }
+
+    /// Read a group's current state.
+    pub fn group(env: Env, group_id: u32) -> Result<Group, Error> {
+        env.storage().persistent().get(&DataKey::Group(group_id)).ok_or(Error::GroupNotFound)
+    }
+
+    fn root_accepted(env: &Env, group_id: u32, group: &Group, root: &BytesN<32>) -> bool {
+        if root == &group.root {
+            return true;
+        }
+        match env
+            .storage()
+            .persistent()
+            .get::<DataKey, u32>(&DataKey::HistoricalRoot(group_id, root.clone()))
+        {
+            Some(expiry) => env.ledger().sequence() <= expiry,
+            None => false,
+        }
     }
 
     /// Stateless verification of a Semaphore proof against the depth's registered vkey.
@@ -163,7 +217,7 @@ impl Semaphore {
             .persistent()
             .get(&DataKey::Group(group_id))
             .ok_or(Error::GroupNotFound)?;
-        if merkle_root != group.root {
+        if !Self::root_accepted(&env, group_id, &group, &merkle_root) {
             return Err(Error::InvalidRoot);
         }
         Self::check_canonical(&merkle_root, &nullifier, &message, &scope)?;

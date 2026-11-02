@@ -1,6 +1,6 @@
 use crate::fixture::*;
 use crate::{Error, Semaphore, SemaphoreClient, VkData};
-use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env};
+use soroban_sdk::{testutils::{Address as _, Ledger as _}, vec, Address, BytesN, Env};
 
 struct Fix {
     env: Env,
@@ -126,4 +126,42 @@ fn nullifier_is_scoped_per_group() {
     client.validate_proof(&g2, &root, &nul, &msg, &scope, &a, &b, &c);
     let again = client.try_validate_proof(&g2, &root, &nul, &msg, &scope, &a, &b, &c);
     assert_eq!(again, Err(Ok(Error::NullifierAlreadyUsed)));
+}
+
+/// A proof built against a root that was current when the proof was made still validates after
+/// the group's root moves on, as long as it is within the validity window.
+#[test]
+fn historical_root_accepted_within_window() {
+    let (fx, client) = setup();
+    let (root, nul, msg, scope, a, b, c) = proof_parts(&fx.env);
+    // move the group to a different current root
+    let mut other = ROOT;
+    other[31] ^= 0x02;
+    client.update_group_root(&fx.group_id, &BytesN::from_array(&fx.env, &other), &DEPTH);
+    assert!(client.is_valid_root(&fx.group_id, &root), "old root still valid in-window");
+    // the proof against the now-historical root still validates
+    client.validate_proof(&fx.group_id, &root, &nul, &msg, &scope, &a, &b, &c);
+}
+
+/// Past the validity window, a superseded root is no longer accepted.
+#[test]
+fn historical_root_rejected_after_expiry() {
+    let (fx, client) = setup();
+    let (root, nul, msg, scope, a, b, c) = proof_parts(&fx.env);
+    let mut other = ROOT;
+    other[31] ^= 0x02;
+    client.update_group_root(&fx.group_id, &BytesN::from_array(&fx.env, &other), &DEPTH);
+    fx.env.ledger().set_sequence_number(20_000); // past ROOT_VALIDITY_LEDGERS (17280)
+    assert!(!client.is_valid_root(&fx.group_id, &root), "old root expired");
+    let r = client.try_validate_proof(&fx.group_id, &root, &nul, &msg, &scope, &a, &b, &c);
+    assert_eq!(r, Err(Ok(Error::InvalidRoot)));
+}
+
+/// Group admin can be transferred.
+#[test]
+fn transfers_group_admin() {
+    let (fx, client) = setup();
+    let new_admin = Address::generate(&fx.env);
+    client.transfer_group_admin(&fx.group_id, &new_admin);
+    assert_eq!(client.group(&fx.group_id).admin, new_admin);
 }
