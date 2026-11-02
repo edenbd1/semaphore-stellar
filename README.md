@@ -76,6 +76,13 @@ cd tools && npm install && node gen-fixture.mjs
 - **Next:** fold the on-chain tree into the sdk-29 library once the SDK exposes a public
   Poseidon; SEP drafts (membership interface + relay protocol).
 
+
+## Status & safety
+
+> ⚠️ **Prototype — unaudited, testnet only.** This code has **not** been audited and runs only
+> on Stellar **testnet** with small fixtures. Do not use it with real value or on mainnet.
+> Proofs reuse Ethereum's Semaphore trusted-setup ceremony (no new ceremony is performed).
+
 ## License
 
 MIT — see [LICENSE](./LICENSE). Compatible with Semaphore (MIT, Ethereum Foundation / PSE).
