@@ -66,6 +66,7 @@ pub enum Error {
     NonCanonicalInput = 5,
     InvalidProof = 6,
     NullifierAlreadyUsed = 7,
+    GroupsNotConfigured = 8,
 }
 
 /// Groth16/BN254 verification key for one tree depth.
@@ -96,6 +97,9 @@ pub enum DataKey {
     Nullifier(u32, BytesN<32>),
     /// A superseded root stays valid until this ledger (root-validity window).
     HistoricalRoot(u32, BytesN<32>),
+    /// The trusted on-chain `SemaphoreGroups` contract whose roots `verify_with_onchain_root`
+    /// reads. Set by the admin; never taken from the caller.
+    TrustedGroups,
 }
 
 /// How long (in ledgers) a superseded root remains accepted, so a proof built against a root
@@ -117,6 +121,15 @@ impl Semaphore {
     pub fn register_vkey(env: Env, depth: u32, vk: VkData) -> Result<(), Error> {
         Self::admin(&env)?.require_auth();
         env.storage().persistent().set(&DataKey::Vk(depth), &vk);
+        Ok(())
+    }
+
+    /// Set the trusted on-chain `SemaphoreGroups` contract used by `verify_with_onchain_root`
+    /// (admin only). This address is NEVER accepted from the caller of a verification, so no one
+    /// can point verification at a contract that returns a self-chosen root.
+    pub fn set_trusted_groups(env: Env, groups: Address) -> Result<(), Error> {
+        Self::admin(&env)?.require_auth();
+        env.storage().instance().set(&DataKey::TrustedGroups, &groups);
         Ok(())
     }
 
@@ -274,7 +287,6 @@ impl Semaphore {
     #[allow(clippy::too_many_arguments)]
     pub fn verify_with_onchain_root(
         env: Env,
-        groups_contract: Address,
         group_id: u32,
         depth: u32,
         nullifier: BytesN<32>,
@@ -284,6 +296,14 @@ impl Semaphore {
         b: BytesN<128>,
         c: BytesN<64>,
     ) -> Result<bool, Error> {
+        // The groups contract is read from TRUSTED config, never from the caller — otherwise an
+        // attacker could pass their own contract returning a self-chosen root and "verify" a
+        // forged membership.
+        let groups_contract: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::TrustedGroups)
+            .ok_or(Error::GroupsNotConfigured)?;
         // Cross-contract read of the authoritative, on-chain-computed root.
         let root_u256: U256 = env.invoke_contract(
             &groups_contract,
