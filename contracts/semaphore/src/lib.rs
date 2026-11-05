@@ -107,6 +107,12 @@ pub enum DataKey {
 /// ~5s/ledger → ~17280 ledgers ≈ 24h.
 const ROOT_VALIDITY_LEDGERS: u32 = 17280;
 
+// Storage TTL (~5s/ledger → ~17280 ledgers/day): keep live entries ~30 days out, bumping when
+// under ~15 days remain, so active groups/vkeys and the spent-nullifier registry are not archived
+// (an archived nullifier would reopen the replay window).
+const TTL_BUMP: u32 = 518_400; // ~30 days
+const TTL_THRESHOLD: u32 = 259_200; // ~15 days
+
 #[contract]
 pub struct Semaphore;
 
@@ -115,12 +121,16 @@ impl Semaphore {
     /// Contract admin owns the per-depth verification-key registry.
     pub fn __constructor(env: Env, admin: Address) {
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_BUMP);
     }
 
     /// Register the ceremony verification key for a given tree depth (admin only).
     pub fn register_vkey(env: Env, depth: u32, vk: VkData) -> Result<(), Error> {
         Self::admin(&env)?.require_auth();
-        env.storage().persistent().set(&DataKey::Vk(depth), &vk);
+        let key = DataKey::Vk(depth);
+        env.storage().persistent().set(&key, &vk);
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_BUMP);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_BUMP);
         Ok(())
     }
 
@@ -130,6 +140,7 @@ impl Semaphore {
     pub fn set_trusted_groups(env: Env, groups: Address) -> Result<(), Error> {
         Self::admin(&env)?.require_auth();
         env.storage().instance().set(&DataKey::TrustedGroups, &groups);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_BUMP);
         Ok(())
     }
 
@@ -138,8 +149,11 @@ impl Semaphore {
         admin.require_auth();
         let id: u32 = env.storage().instance().get(&DataKey::GroupCount).unwrap_or(0);
         let group = Group { admin: admin.clone(), root: BytesN::from_array(&env, &[0u8; 32]), depth: 0 };
-        env.storage().persistent().set(&DataKey::Group(id), &group);
+        let gkey = DataKey::Group(id);
+        env.storage().persistent().set(&gkey, &group);
+        env.storage().persistent().extend_ttl(&gkey, TTL_THRESHOLD, TTL_BUMP);
         env.storage().instance().set(&DataKey::GroupCount, &(id + 1));
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_BUMP);
         GroupCreated { group_id: id, admin }.publish(&env);
         id
     }
@@ -164,11 +178,16 @@ impl Semaphore {
         let old = group.root.clone();
         if old != BytesN::from_array(&env, &[0u8; 32]) {
             let expiry = env.ledger().sequence() + ROOT_VALIDITY_LEDGERS;
-            env.storage().persistent().set(&DataKey::HistoricalRoot(group_id, old), &expiry);
+            let hkey = DataKey::HistoricalRoot(group_id, old);
+            env.storage().persistent().set(&hkey, &expiry);
+            env.storage().persistent().extend_ttl(&hkey, TTL_THRESHOLD, TTL_BUMP);
         }
         group.root = new_root.clone();
         group.depth = depth;
-        env.storage().persistent().set(&DataKey::Group(group_id), &group);
+        let gkey = DataKey::Group(group_id);
+        env.storage().persistent().set(&gkey, &group);
+        env.storage().persistent().extend_ttl(&gkey, TTL_THRESHOLD, TTL_BUMP);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_BUMP);
         RootUpdated { group_id, root: new_root.clone(), depth }.publish(&env);
         Ok(())
     }
@@ -182,7 +201,9 @@ impl Semaphore {
             .ok_or(Error::GroupNotFound)?;
         group.admin.require_auth();
         group.admin = new_admin.clone();
-        env.storage().persistent().set(&DataKey::Group(group_id), &group);
+        let gkey = DataKey::Group(group_id);
+        env.storage().persistent().set(&gkey, &group);
+        env.storage().persistent().extend_ttl(&gkey, TTL_THRESHOLD, TTL_BUMP);
         AdminTransferred { group_id, admin: new_admin.clone() }.publish(&env);
         Ok(())
     }
@@ -277,6 +298,7 @@ impl Semaphore {
             return Err(Error::NullifierAlreadyUsed);
         }
         env.storage().persistent().set(&key, &());
+        env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_BUMP);
         ProofValidated { group_id, nullifier: nullifier.clone(), message: message.clone(), scope: scope.clone() }.publish(&env);
         Ok(())
     }
