@@ -27,6 +27,22 @@ mod fixture_multidepth;
 #[cfg(test)]
 mod fixture_multidepth_hi;
 
+/// BN254 scalar field order `r`, big-endian. Public inputs must be canonical (`< r`): the host
+/// silently reduces a 32-byte scalar mod `r`, so a non-canonical encoding (`n + r`) of a nullifier
+/// or root verifies the SAME proof yet differs as raw bytes. A consumer that keys a replay guard on
+/// those bytes would then be bypassable. We reject non-canonical signals here so every consumer of
+/// this library is safe by default, not just the ones that remember to check.
+const R_BE: [u8; 32] = [
+    0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
+    0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00, 0x00, 0x01,
+];
+
+/// True iff `v` (big-endian) is a canonical field element, i.e. `v < r`.
+pub fn is_canonical(v: &BytesN<32>) -> bool {
+    // Big-endian byte comparison equals numeric comparison.
+    v.to_array() < R_BE
+}
+
 /// Groth16/BN254 verification key. `ic` must have `public_inputs + 1` points.
 pub struct Vk {
     pub alpha: Bn254G1Affine,
@@ -87,6 +103,12 @@ pub fn verify_encoded(
 ) -> bool {
     let mut signals = Vec::new(env);
     for s in pub_signals.iter() {
+        // Reject non-canonical inputs (>= r) rather than let the host reduce them: otherwise
+        // `n` and `n + r` are two byte encodings of the same proof, which breaks raw-bytes
+        // replay guards downstream (see R_BE).
+        if !is_canonical(&s) {
+            return false;
+        }
         signals.push_back(Bn254Fr::from_bytes(s));
     }
     let mut ic = Vec::new(env);
@@ -261,6 +283,36 @@ mod test {
         assert!(
             !groth16_verify(&env, &vk, &pub_signals, &a, &b, &c),
             "a proof with a tampered public signal must NOT verify"
+        );
+    }
+
+    /// Big-endian 256-bit add (no overflow for our inputs: nullifier + r < 2r < 2^256).
+    fn add_be(x: &[u8; 32], y: &[u8; 32]) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        let mut carry = 0u16;
+        for i in (0..32).rev() {
+            let s = x[i] as u16 + y[i] as u16 + carry;
+            out[i] = (s & 0xff) as u8;
+            carry = s >> 8;
+        }
+        out
+    }
+
+    /// Replay-hardening: a non-canonical encoding of a public signal (`n + r`, the same field
+    /// element but different bytes) must be REJECTED by `verify_encoded`, not silently reduced —
+    /// otherwise a consumer keying a replay guard on raw nullifier bytes could be bypassed.
+    #[test]
+    fn rejects_non_canonical_signal() {
+        let env = Env::default();
+        let (mut pub_signals, a, b, c, alpha, beta, gamma, delta, ic) = fixture_args(&env);
+        // The original fixture is a real, verifying proof; replace the nullifier (index 1)
+        // with nullifier + r, which reduces to the same field element.
+        let nplus_r = add_be(&PUB_1, &crate::R_BE);
+        assert!(nplus_r >= crate::R_BE, "n + r must be non-canonical");
+        pub_signals.set(1, BytesN::from_array(&env, &nplus_r));
+        assert!(
+            !verify_encoded(&env, &pub_signals, &a, &b, &c, &alpha, &beta, &gamma, &delta, &ic),
+            "a non-canonical (n + r) public signal must be rejected, not reduced"
         );
     }
 }
