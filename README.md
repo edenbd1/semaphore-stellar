@@ -81,6 +81,14 @@ cd tools && npm install && node gen-fixture.mjs
 
 > ⚠️ **Prototype — unaudited, testnet only.** This code has **not** been audited and runs only
 > on Stellar **testnet** with small fixtures. Do not use it with real value or on mainnet.
+
+### Known limitations
+
+- `verify_proof` is a raw verification primitive (the caller supplies `merkle_root` and `depth`); it is **not** a membership check on its own.
+- `verify_with_onchain_root` reads the trusted `groups` contract from config — call `set_trusted_groups` (admin) first; it never accepts the groups address from the caller.
+- v1 uses an **off-chain tree**: a group admin's `update_group_root` can set any root, so soundness reduces to trusting the group admin. The trustless alternative is the on-chain `groups` contract.
+- A superseded root stays valid for a ~24h window, so a just-removed member can still prove membership briefly.
+- No storage-TTL management yet: left idle long enough, instance storage can be archived and the contract must be restored before it works again.
 > Proofs reuse Ethereum's Semaphore trusted-setup ceremony (no new ceremony is performed).
 
 ## License
