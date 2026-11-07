@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "29"
-semaphore-stellar-verifier = { path = "../verifier", version = "0.0.1", default-features = false }
+semaphore-stellar-verifier = { path = "../verifier", version = "0.0.2", default-features = false }
 
 [dev-dependencies]
 soroban-sdk = { version = "29", features = ["testutils"] }
