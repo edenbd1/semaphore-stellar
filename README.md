@@ -42,7 +42,7 @@ vk_x = IC[0] + Σ pub_signals[i] · IC[i + 1]
 via `env.crypto().bn254().pairing_check`. Point encoding is Soroban's uncompressed BN254
 format: G1 = `X‖Y` (64 bytes), G2 = `Xc1‖Xc0‖Yc1‖Yc0` (128 bytes, Fp2 imaginary first),
 scalars are 32-byte big-endian field elements. Budget: a single verification is ~29M
-instructions, well under the 100M mainnet per-tx limit.
+instructions, well under the 400M mainnet per-tx limit (`tx_max_instructions`, checked with `stellar network settings`).
 
 ## Test & build
 
